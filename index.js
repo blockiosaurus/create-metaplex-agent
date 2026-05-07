@@ -102,6 +102,47 @@ async function askYesNo(q, defaultYes = true) {
   return answer === 'y' || answer === 'yes';
 }
 
+// Like ask(), but suppresses on-screen echo of what the user types — so
+// pasting an API key during a screen recording doesn't leak the key. In
+// non-TTY mode (piped input, CI) the queued line is consumed silently and a
+// single newline is printed; nothing of the value ever reaches stdout.
+async function askSecret(q) {
+  const prompt = `${q}: `;
+  if (!input.isTTY) {
+    output.write(prompt);
+    const line = nextPipedLine();
+    // Print a newline only — never the value itself.
+    output.write('\n');
+    return line.trim();
+  }
+  const r = getRl();
+  // _writeToOutput is the readline hook that fires every time the interface
+  // would render a character to the terminal — including the typed/pasted
+  // characters during a question(). It's a "private" API in the sense that
+  // Node doesn't document it, but it has been stable across Node 12 → 22 and
+  // is the technique used by inquirer, prompts, etc.
+  const origWriteToOutput = r._writeToOutput;
+  let userInputStarted = false;
+  r._writeToOutput = function (str) {
+    if (!userInputStarted || str === '\r\n' || str === '\n') {
+      return origWriteToOutput.call(this, str);
+    }
+    // Swallow — the typed key is hidden. Newlines still pass so Enter
+    // moves the cursor down cleanly.
+  };
+  // Flip the mute flag on the first keypress, so the prompt itself renders
+  // before we start swallowing.
+  const onKeypress = () => { userInputStarted = true; };
+  input.on('keypress', onKeypress);
+  try {
+    const answer = await r.question(prompt);
+    return answer.trim();
+  } finally {
+    r._writeToOutput = origWriteToOutput;
+    input.removeListener('keypress', onKeypress);
+  }
+}
+
 function generateKeypairBase58() {
   const kp = nacl.sign.keyPair();
   return bs58.encode(kp.secretKey);
@@ -257,7 +298,9 @@ async function main() {
   }
   const providerKey = provider.key;
   const llmModel = provider.model;
-  const llmKey = (await ask(`Paste ${providerKey} (leave blank to fill later)`)).trim();
+  // Hidden input: pasted API keys must not echo to the terminal so they
+  // don't end up in screen recordings or scrollback.
+  const llmKey = await askSecret(`Paste ${providerKey} (input hidden — leave blank to fill later)`);
 
   // 5. Wallet allowlist (public mode) or bootstrap wallet (autonomous mode)
   let walletAllowlist = '';
