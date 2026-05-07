@@ -329,11 +329,64 @@ async function main() {
   // don't end up in screen recordings or scrollback.
   const llmKey = await askSecret(`Paste ${providerKey} (input hidden — leave blank to fill later)`);
 
-  // 5. Wallet allowlist (public mode) or bootstrap wallet (autonomous mode)
+  // 5. Solana RPC
+  console.log('\n4. Solana RPC\n');
+  console.log('  1) devnet     — https://api.devnet.solana.com (default; free public RPC)');
+  console.log('  2) mainnet    — https://api.mainnet-beta.solana.com (free public RPC, rate-limited)');
+  console.log('  3) localnet   — http://localhost:8899 (your local solana-test-validator)');
+  console.log('  4) custom     — paste a URL (e.g. Helius/QuickNode/Triton)\n');
+  const RPC_PRESETS = {
+    '1': { url: 'https://api.devnet.solana.com', preset: 'devnet', cluster: 'devnet' },
+    '2': { url: 'https://api.mainnet-beta.solana.com', preset: 'mainnet', cluster: 'mainnet-beta' },
+    '3': { url: 'http://localhost:8899', preset: 'localnet', cluster: 'devnet' },
+  };
+  let rpcUrl;
+  let rpcPreset;
+  let rpcCluster;
+  while (true) {
+    const raw = (await ask('Pick RPC [1-4]', '1')).trim();
+    if (raw in RPC_PRESETS) {
+      ({ url: rpcUrl, preset: rpcPreset, cluster: rpcCluster } = RPC_PRESETS[raw]);
+      break;
+    }
+    if (raw === '4') {
+      while (true) {
+        const custom = (await ask('Custom RPC URL')).trim();
+        try {
+          const u = new URL(custom);
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            console.log('  RPC URL must be http(s).');
+            continue;
+          }
+          rpcUrl = custom;
+          rpcPreset = 'custom';
+          break;
+        } catch {
+          console.log('  Not a valid URL. Try again.');
+        }
+      }
+      while (true) {
+        // Cluster is needed independently of URL because SIWS chain-id
+        // verification can't infer the network from a private RPC hostname.
+        const c = (await ask('Cluster [mainnet-beta/devnet/testnet]', 'devnet'))
+          .trim()
+          .toLowerCase();
+        if (c === 'mainnet-beta' || c === 'devnet' || c === 'testnet') {
+          rpcCluster = c;
+          break;
+        }
+        console.log('  Pick mainnet-beta, devnet, or testnet.');
+      }
+      break;
+    }
+    console.log(`  "${raw}" is not a valid choice. Enter 1, 2, 3, or 4.`);
+  }
+
+  // 6. Wallet allowlist (public mode) or bootstrap wallet (autonomous mode)
   let walletAllowlist = '';
   let bootstrapWallet = '';
   if (mode === 'public') {
-    console.log('\n4. Wallet allowlist (optional)\n');
+    console.log('\n5. Wallet allowlist (optional)\n');
     console.log('  In public mode the agent accepts SIWS-signed connections from any wallet by');
     console.log('  default. To restrict it to a specific list (e.g. just your own wallet for the');
     console.log('  initial test), paste your wallet pubkey below. The on-chain owner is always');
@@ -349,7 +402,7 @@ async function main() {
       break;
     }
   } else {
-    console.log('\n4. Bootstrap wallet (autonomous mode)\n');
+    console.log('\n5. Bootstrap wallet (autonomous mode)\n');
     console.log('  Autonomous mode requires a BOOTSTRAP_WALLET pubkey before the agent is');
     console.log('  registered on-chain. After registration, the on-chain asset owner takes over.\n');
     while (true) {
@@ -396,6 +449,7 @@ async function main() {
     /^# ?GOOGLE_GENERATIVE_AI_API_KEY=.*$/m,
     `${providerKey === 'GOOGLE_GENERATIVE_AI_API_KEY' ? '' : '# '}GOOGLE_GENERATIVE_AI_API_KEY=${providerKey === 'GOOGLE_GENERATIVE_AI_API_KEY' ? llmKey : ''}`,
   );
+  replaceOrAppend(/^SOLANA_RPC_URL=.*$/m, `SOLANA_RPC_URL=${rpcUrl}`);
   replaceOrAppend(/^WALLET_ALLOWLIST=.*$/m, `WALLET_ALLOWLIST=${walletAllowlist}`);
   replaceOrAppend(
     /^# ?BOOTSTRAP_WALLET=.*$/m,
@@ -484,7 +538,11 @@ async function main() {
   // and the .env.example default of devnet RPC.
   const shareParams = new URLSearchParams();
   shareParams.set('ws', 'ws://localhost:3002');
-  shareParams.set('preset', 'devnet');
+  shareParams.set('preset', rpcPreset);
+  if (rpcPreset === 'custom') {
+    shareParams.set('rpc', rpcUrl);
+    shareParams.set('cluster', rpcCluster);
+  }
   shareParams.set('name', dirName);
   const shareLink = `http://localhost:3001/#${shareParams.toString()}`;
 
