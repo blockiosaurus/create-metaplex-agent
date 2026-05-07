@@ -406,6 +406,18 @@ async function main() {
     }
   }
 
+  // Build a chat-template share link that pre-fills the agent profile, so
+  // operators (and anyone they hand the link to) can skip the chat UI's
+  // profile-setup step. Format mirrors `encodeProfileToHash` in
+  // metaplex-agent-chat-template/src/lib/share-link.ts — keep them in sync.
+  // Defaults assume the standard `pnpm dev:full` ports (UI 3001, WS 3002)
+  // and the .env.example default of devnet RPC.
+  const shareParams = new URLSearchParams();
+  shareParams.set('ws', 'ws://localhost:3002');
+  shareParams.set('preset', 'devnet');
+  shareParams.set('name', dirName);
+  const shareLink = `http://localhost:3001/#${shareParams.toString()}`;
+
   console.log('\nDone! Next steps:\n');
   console.log(`  cd ${dirName}`);
   console.log('  pnpm install');
@@ -414,6 +426,8 @@ async function main() {
   console.log(
     `\n  Then connect a wallet at http://localhost:3001 (${mode === 'public' ? 'must be on the allowlist' : 'must be the bootstrap wallet pre-registration'}).`,
   );
+  console.log('\n  Share this link to skip profile setup in the chat UI:');
+  console.log(`    ${shareLink}`);
   console.log();
 }
 
