@@ -1,6 +1,6 @@
 {
   "name": "create-metaplex-agent",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Scaffold a new Metaplex Solana AI agent.",
   "type": "module",
   "bin": {

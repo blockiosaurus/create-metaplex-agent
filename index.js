@@ -115,32 +115,59 @@ async function askSecret(q) {
     output.write('\n');
     return line.trim();
   }
-  const r = getRl();
-  // _writeToOutput is the readline hook that fires every time the interface
-  // would render a character to the terminal — including the typed/pasted
-  // characters during a question(). It's a "private" API in the sense that
-  // Node doesn't document it, but it has been stable across Node 12 → 22 and
-  // is the technique used by inquirer, prompts, etc.
-  const origWriteToOutput = r._writeToOutput;
-  let userInputStarted = false;
-  r._writeToOutput = function (str) {
-    if (!userInputStarted || str === '\r\n' || str === '\n') {
-      return origWriteToOutput.call(this, str);
-    }
-    // Swallow — the typed key is hidden. Newlines still pass so Enter
-    // moves the cursor down cleanly.
-  };
-  // Flip the mute flag on the first keypress, so the prompt itself renders
-  // before we start swallowing.
-  const onKeypress = () => { userInputStarted = true; };
-  input.on('keypress', onKeypress);
-  try {
-    const answer = await r.question(prompt);
-    return answer.trim();
-  } finally {
-    r._writeToOutput = origWriteToOutput;
-    input.removeListener('keypress', onKeypress);
+  // TTY: read stdin in raw mode and explicitly write nothing to the output.
+  // This is the canonical password-prompt pattern (cf. `read -s` in bash).
+  // We close the existing readline interface first so it doesn't compete
+  // for stdin events; getRl() will recreate it lazily on the next prompt.
+  if (rl) {
+    rl.close();
+    rl = null;
   }
+  output.write(prompt);
+  input.setRawMode(true);
+  input.resume();
+  input.setEncoding('utf8');
+
+  return await new Promise((resolve) => {
+    let buf = '';
+    let inPaste = false;
+    const finish = (value, exitCode) => {
+      input.removeListener('data', onData);
+      input.setRawMode(false);
+      input.pause();
+      output.write('\n');
+      if (exitCode !== undefined) process.exit(exitCode);
+      resolve(value);
+    };
+    const onData = (chunk) => {
+      let s = chunk;
+      while (s.length > 0) {
+        // Bracketed-paste markers (\e[200~ … \e[201~) are sent by terminals
+        // that have paste-detection enabled. Strip them so the marker bytes
+        // don't end up in the captured value.
+        if (s.startsWith('\x1b[200~')) { inPaste = true; s = s.slice(6); continue; }
+        if (s.startsWith('\x1b[201~')) { inPaste = false; s = s.slice(6); continue; }
+        const ch = s[0];
+        s = s.slice(1);
+        if (ch === '\r' || ch === '\n') {
+          if (inPaste) continue;            // multi-line paste: ignore embedded newlines
+          finish(buf.trim());
+          return;
+        }
+        if (ch === '\x03') {                 // Ctrl-C
+          finish('', 130);
+          return;
+        }
+        if (ch === '\x7f' || ch === '\b') {  // backspace / delete
+          buf = buf.slice(0, -1);
+          continue;
+        }
+        if (ch.charCodeAt(0) < 0x20) continue; // discard remaining control chars
+        buf += ch;
+      }
+    };
+    input.on('data', onData);
+  });
 }
 
 function generateKeypairBase58() {
