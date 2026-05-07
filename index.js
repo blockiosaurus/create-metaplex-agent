@@ -386,11 +386,14 @@ async function main() {
   let walletAllowlist = '';
   let bootstrapWallet = '';
   if (mode === 'public') {
-    console.log('\n5. Wallet allowlist (optional)\n');
-    console.log('  In public mode the agent accepts SIWS-signed connections from any wallet by');
-    console.log('  default. To restrict it to a specific list (e.g. just your own wallet for the');
-    console.log('  initial test), paste your wallet pubkey below. The on-chain owner is always');
-    console.log('  allowed regardless of this list.\n');
+    console.log('\n5. Your wallet pubkey (optional)\n');
+    console.log('  Used for two things in public mode:');
+    console.log('  - WALLET_ALLOWLIST: only this wallet (plus the on-chain owner) can connect');
+    console.log('  - BOOTSTRAP_WALLET: this wallet is treated as the owner BEFORE the agent');
+    console.log('    is registered on-chain, which is what lets you call register-agent the');
+    console.log('    first time. After registration, the on-chain asset owner takes over.\n');
+    console.log('  Leave blank to skip both — the agent will accept any wallet, but no one');
+    console.log('  will be able to register it until you set BOOTSTRAP_WALLET in .env yourself.\n');
     while (true) {
       const pk = (await ask('Your wallet pubkey (or blank to skip)')).trim();
       if (pk === '') break;
@@ -399,6 +402,7 @@ async function main() {
         continue;
       }
       walletAllowlist = pk;
+      bootstrapWallet = pk;
       break;
     }
   } else {
