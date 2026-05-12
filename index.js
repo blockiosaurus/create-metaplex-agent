@@ -484,9 +484,12 @@ async function main() {
     bootstrapWallet ? `BOOTSTRAP_WALLET=${bootstrapWallet}` : '# BOOTSTRAP_WALLET=',
   );
   // AGENT_PERSONA — only emit a non-comment line when the operator picked
-  // a non-default persona, so a freshly-set-up .env stays minimal.
+  // a non-default persona, so a freshly-set-up .env stays minimal. The regex
+  // matches the placeholder whether it's commented (`# AGENT_PERSONA=`) or
+  // uncommented (`AGENT_PERSONA=`) so a template that promotes this key from
+  // optional to default doesn't cause a duplicate line to be appended.
   replaceOrAppend(
-    /^# ?AGENT_PERSONA=.*$/m,
+    /^#? ?AGENT_PERSONA=.*$/m,
     agentPersona === 'default' ? '# AGENT_PERSONA=default' : `AGENT_PERSONA=${agentPersona}`,
   );
 
