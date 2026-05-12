@@ -10,7 +10,7 @@ npx create-metaplex-agent my-agent
 npm create metaplex-agent@latest my-agent
 ```
 
-This clones the [metaplex-mastra-agent-template](https://github.com/metaplex-foundation/metaplex-mastra-agent-template) into `my-agent/`, runs an interactive setup (mode pick, Ed25519 keypair generation, LLM provider + key, Solana RPC pick, wallet allowlist or bootstrap wallet), and writes a locked-down `.env` (chmod 0600). API keys are read with hidden input, so pasting one during a screen recording won't leak it. The final output includes a chat-template share link that pre-fills the agent profile so you can connect with one click.
+This clones the [metaplex-mastra-agent-template](https://github.com/metaplex-foundation/metaplex-mastra-agent-template) into `my-agent/`, runs an interactive setup (mode pick, Ed25519 keypair generation, LLM provider + key, Solana RPC pick, wallet allowlist or bootstrap wallet, persona preset), and writes a locked-down `.env` (chmod 0600). API keys are read with hidden input, so pasting one during a screen recording won't leak it. The final output includes a chat-template share link that pre-fills the agent profile so you can connect with one click.
 
 It does **not** install dependencies — pick your own package manager:
 
