@@ -420,9 +420,33 @@ async function main() {
     }
   }
 
+  // 7. Persona preset — mirrors `pnpm setup` section 5 in the template.
+  console.log('\n6. Agent persona (system-prompt preset)\n');
+  console.log("  Picks the agent's domain identity. Bundled options:");
+  console.log('    1) default                  — general-purpose Solana agent');
+  console.log('    2) token-launch-concierge   — walks users through launching a token');
+  console.log('    3) wallet-cleanup-bot       — finds and sweeps dust');
+  console.log('    4) treasury-rebalancer      — autonomous treasury management');
+  console.log('  See packages/core/src/personas/ for the full prompts.\n');
+  const PERSONA_CHOICES = {
+    '1': 'default',
+    '2': 'token-launch-concierge',
+    '3': 'wallet-cleanup-bot',
+    '4': 'treasury-rebalancer',
+  };
+  let agentPersona = 'default';
+  while (true) {
+    const raw = (await ask('Pick persona [1-4]', '1')).trim();
+    if (raw in PERSONA_CHOICES) {
+      agentPersona = PERSONA_CHOICES[raw];
+      break;
+    }
+    console.log(`  "${raw}" is not a valid choice. Enter 1-4.`);
+  }
+
   if (rl) rl.close();
 
-  // 6. Render .env
+  // 8. Render .env
   const envPath = resolve(targetDir, '.env');
   const examplePath = resolve(targetDir, '.env.example');
   let envContent = existsSync(examplePath) ? readFileSync(examplePath, 'utf8') : '';
@@ -458,6 +482,15 @@ async function main() {
   replaceOrAppend(
     /^# ?BOOTSTRAP_WALLET=.*$/m,
     bootstrapWallet ? `BOOTSTRAP_WALLET=${bootstrapWallet}` : '# BOOTSTRAP_WALLET=',
+  );
+  // AGENT_PERSONA — only emit a non-comment line when the operator picked
+  // a non-default persona, so a freshly-set-up .env stays minimal. The regex
+  // matches the placeholder whether it's commented (`# AGENT_PERSONA=`) or
+  // uncommented (`AGENT_PERSONA=`) so a template that promotes this key from
+  // optional to default doesn't cause a duplicate line to be appended.
+  replaceOrAppend(
+    /^#? ?AGENT_PERSONA=.*$/m,
+    agentPersona === 'default' ? '# AGENT_PERSONA=default' : `AGENT_PERSONA=${agentPersona}`,
   );
 
   // LLM_MODEL is optional in the slim example (defaults to Anthropic Claude).
